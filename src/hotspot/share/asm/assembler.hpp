@@ -217,11 +217,11 @@ class AbstractAssembler : public ResourceObj  {
   // Code emission & accessing
   address addr_at(int pos) const { return code_section()->start() + pos; }
 
- protected:
   // This routine is called with a label is used for an address.
   // Labels and displacements truck in offsets, but target must return a PC.
   address target(Label& L)             { return code_section()->target(L, pc()); }
 
+ protected:
   bool is8bit(int x) const             { return -0x80 <= x && x < 0x80; }
   bool isByte(int x) const             { return 0 <= x && x < 0x100; }
   bool isShiftCount(int x) const       { return 0 <= x && x < 32; }

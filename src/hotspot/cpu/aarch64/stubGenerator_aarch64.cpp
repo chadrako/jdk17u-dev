@@ -1036,9 +1036,6 @@ class StubGenerator: public StubCodeGenerator {
   }
 
   // Small copy: less than 16 bytes.
-  //
-  // NB: Ignores all of the bits of count which represent more than 15
-  // bytes, so a caller doesn't have to mask them.
 
   void copy_memory_small(Register s, Register d, Register count, Register tmp, int step) {
     bool is_backwards = step < 0;
@@ -1046,43 +1043,192 @@ class StubGenerator: public StubCodeGenerator {
     int direction = is_backwards ? -1 : 1;
     int unit = wordSize * direction;
 
-    Label Lword, Lint, Lshort, Lbyte;
+    Label finish, jmp_table, one, two, three, four, five, six, seven, eight, nine, ten, eleven, twelve, thirteen, fourteen, fifteen;
 
     assert(granularity
            && granularity <= sizeof (jlong), "Impossible granularity in copy_memory_small");
 
     const Register t0 = r3, t1 = r4, t2 = r5, t3 = r6;
 
-    // ??? I don't know if this bit-test-and-branch is the right thing
-    // to do.  It does a lot of jumping, resulting in several
-    // mispredicted branches.  It might make more sense to do this
-    // with something like Duff's device with a single computed branch.
+    // Mask count to get bits we care about
+    uint64_t mask;
+    switch(granularity) {
+      case 1:
+        mask = 0b1111;
+        break;
+      case 2:
+        mask = 0b0111;
+        break;
+      case 4:
+        mask = 0b0011;
+        break;
+      case 8:
+        mask = 0b0001;
+        break;
+      default:
+        ShouldNotReachHere();
+    }
+    __ andw(count, count, mask);
 
-    __ tbz(count, 3 - exact_log2(granularity), Lword);
+    // Convert count to bytes
+    __ mov(tmp, granularity);
+    __ mul(count, count, tmp);
+
+    // Multiple count by 4 to get insn offset
+    __ mov(tmp, 4);
+    __ mul(count, count, tmp);
+
+    // Move jmp_table into tmp
+    __ mov(tmp, __ target(jmp_table));
+
+    // Calculate jmp_table offset
+    __ add(tmp, count, tmp);
+    __ br(tmp);
+
+    // 15
+    __ bind(fifteen);
     __ ldr(tmp, Address(__ adjust(s, unit, is_backwards)));
     __ str(tmp, Address(__ adjust(d, unit, is_backwards)));
-    __ bind(Lword);
+    __ ldrw(tmp, Address(__ adjust(s, sizeof (jint) * direction, is_backwards)));
+    __ strw(tmp, Address(__ adjust(d, sizeof (jint) * direction, is_backwards)));
+    __ ldrh(tmp, Address(__ adjust(s, sizeof (jshort) * direction, is_backwards)));
+    __ strh(tmp, Address(__ adjust(d, sizeof (jshort) * direction, is_backwards)));
+    __ ldrb(tmp, Address(__ adjust(s, sizeof (jbyte) * direction, is_backwards)));
+    __ strb(tmp, Address(__ adjust(d, sizeof (jbyte) * direction, is_backwards)));
+    __ b(finish);
 
-    if (granularity <= sizeof (jint)) {
-      __ tbz(count, 2 - exact_log2(granularity), Lint);
-      __ ldrw(tmp, Address(__ adjust(s, sizeof (jint) * direction, is_backwards)));
-      __ strw(tmp, Address(__ adjust(d, sizeof (jint) * direction, is_backwards)));
-      __ bind(Lint);
-    }
+    // 14
+    __ bind(fourteen);
+    __ ldr(tmp, Address(__ adjust(s, unit, is_backwards)));
+    __ str(tmp, Address(__ adjust(d, unit, is_backwards)));
+    __ ldrw(tmp, Address(__ adjust(s, sizeof (jint) * direction, is_backwards)));
+    __ strw(tmp, Address(__ adjust(d, sizeof (jint) * direction, is_backwards)));
+    __ ldrh(tmp, Address(__ adjust(s, sizeof (jshort) * direction, is_backwards)));
+    __ strh(tmp, Address(__ adjust(d, sizeof (jshort) * direction, is_backwards)));
+    __ b(finish);
 
-    if (granularity <= sizeof (jshort)) {
-      __ tbz(count, 1 - exact_log2(granularity), Lshort);
-      __ ldrh(tmp, Address(__ adjust(s, sizeof (jshort) * direction, is_backwards)));
-      __ strh(tmp, Address(__ adjust(d, sizeof (jshort) * direction, is_backwards)));
-      __ bind(Lshort);
-    }
+    // 13
+    __ bind(thirteen);
+    __ ldr(tmp, Address(__ adjust(s, unit, is_backwards)));
+    __ str(tmp, Address(__ adjust(d, unit, is_backwards)));
+    __ ldrw(tmp, Address(__ adjust(s, sizeof (jint) * direction, is_backwards)));
+    __ strw(tmp, Address(__ adjust(d, sizeof (jint) * direction, is_backwards)));
+    __ ldrb(tmp, Address(__ adjust(s, sizeof (jbyte) * direction, is_backwards)));
+    __ strb(tmp, Address(__ adjust(d, sizeof (jbyte) * direction, is_backwards)));
+    __ b(finish);
 
-    if (granularity <= sizeof (jbyte)) {
-      __ tbz(count, 0, Lbyte);
-      __ ldrb(tmp, Address(__ adjust(s, sizeof (jbyte) * direction, is_backwards)));
-      __ strb(tmp, Address(__ adjust(d, sizeof (jbyte) * direction, is_backwards)));
-      __ bind(Lbyte);
-    }
+    // 12
+    __ bind(twelve);
+    __ ldr(tmp, Address(__ adjust(s, unit, is_backwards)));
+    __ str(tmp, Address(__ adjust(d, unit, is_backwards)));
+    __ ldrw(tmp, Address(__ adjust(s, sizeof (jint) * direction, is_backwards)));
+    __ strw(tmp, Address(__ adjust(d, sizeof (jint) * direction, is_backwards)));
+    __ b(finish);
+
+    // 11
+    __ bind(eleven);
+    __ ldr(tmp, Address(__ adjust(s, unit, is_backwards)));
+    __ str(tmp, Address(__ adjust(d, unit, is_backwards)));
+    __ ldrh(tmp, Address(__ adjust(s, sizeof (jshort) * direction, is_backwards)));
+    __ strh(tmp, Address(__ adjust(d, sizeof (jshort) * direction, is_backwards)));
+    __ ldrb(tmp, Address(__ adjust(s, sizeof (jbyte) * direction, is_backwards)));
+    __ strb(tmp, Address(__ adjust(d, sizeof (jbyte) * direction, is_backwards)));
+    __ b(finish);
+
+    // 10
+    __ bind(ten);
+    __ ldr(tmp, Address(__ adjust(s, unit, is_backwards)));
+    __ str(tmp, Address(__ adjust(d, unit, is_backwards)));
+    __ ldrh(tmp, Address(__ adjust(s, sizeof (jshort) * direction, is_backwards)));
+    __ strh(tmp, Address(__ adjust(d, sizeof (jshort) * direction, is_backwards)));
+    __ b(finish);
+
+    // 9
+    __ bind(nine);
+    __ ldr(tmp, Address(__ adjust(s, unit, is_backwards)));
+    __ str(tmp, Address(__ adjust(d, unit, is_backwards)));
+    __ ldrb(tmp, Address(__ adjust(s, sizeof (jbyte) * direction, is_backwards)));
+    __ strb(tmp, Address(__ adjust(d, sizeof (jbyte) * direction, is_backwards)));
+    __ b(finish);
+
+    // 8
+    __ bind(eight);
+    __ ldr(tmp, Address(__ adjust(s, unit, is_backwards)));
+    __ str(tmp, Address(__ adjust(d, unit, is_backwards)));
+    __ b(finish);
+
+    // 7
+    __ bind(seven);
+    __ ldrw(tmp, Address(__ adjust(s, sizeof (jint) * direction, is_backwards)));
+    __ strw(tmp, Address(__ adjust(d, sizeof (jint) * direction, is_backwards)));
+    __ ldrh(tmp, Address(__ adjust(s, sizeof (jshort) * direction, is_backwards)));
+    __ strh(tmp, Address(__ adjust(d, sizeof (jshort) * direction, is_backwards)));
+    __ ldrb(tmp, Address(__ adjust(s, sizeof (jbyte) * direction, is_backwards)));
+    __ strb(tmp, Address(__ adjust(d, sizeof (jbyte) * direction, is_backwards)));
+    __ b(finish);
+
+    // 6
+    __ bind(six);
+    __ ldrw(tmp, Address(__ adjust(s, sizeof (jint) * direction, is_backwards)));
+    __ strw(tmp, Address(__ adjust(d, sizeof (jint) * direction, is_backwards)));
+    __ ldrh(tmp, Address(__ adjust(s, sizeof (jshort) * direction, is_backwards)));
+    __ strh(tmp, Address(__ adjust(d, sizeof (jshort) * direction, is_backwards)));
+    __ b(finish);
+
+    // 5
+    __ bind(five);
+    __ ldrw(tmp, Address(__ adjust(s, sizeof (jint) * direction, is_backwards)));
+    __ strw(tmp, Address(__ adjust(d, sizeof (jint) * direction, is_backwards)));
+    __ ldrb(tmp, Address(__ adjust(s, sizeof (jbyte) * direction, is_backwards)));
+    __ strb(tmp, Address(__ adjust(d, sizeof (jbyte) * direction, is_backwards)));
+    __ b(finish);
+
+    // 4
+    __ bind(four);
+    __ ldrw(tmp, Address(__ adjust(s, sizeof (jint) * direction, is_backwards)));
+    __ strw(tmp, Address(__ adjust(d, sizeof (jint) * direction, is_backwards)));
+    __ b(finish);
+
+    // 3
+    __ bind(three);
+    __ ldrh(tmp, Address(__ adjust(s, sizeof (jshort) * direction, is_backwards)));
+    __ strh(tmp, Address(__ adjust(d, sizeof (jshort) * direction, is_backwards)));
+    __ ldrb(tmp, Address(__ adjust(s, sizeof (jbyte) * direction, is_backwards)));
+    __ strb(tmp, Address(__ adjust(d, sizeof (jbyte) * direction, is_backwards)));
+    __ b(finish);
+
+    // 2
+    __ bind(two);
+    __ ldrh(tmp, Address(__ adjust(s, sizeof (jshort) * direction, is_backwards)));
+    __ strh(tmp, Address(__ adjust(d, sizeof (jshort) * direction, is_backwards)));
+    __ b(finish);
+
+    // 1
+    __ bind(one);
+    __ ldrb(tmp, Address(__ adjust(s, sizeof (jbyte) * direction, is_backwards)));
+    __ strb(tmp, Address(__ adjust(d, sizeof (jbyte) * direction, is_backwards)));
+    __ b(finish);
+
+    // Create jump table
+    __ bind(jmp_table);
+    __ b(finish);
+    __ b(one);
+    __ b(two);
+    __ b(three);
+    __ b(four);
+    __ b(five);
+    __ b(six);
+    __ b(seven);
+    __ b(eight);
+    __ b(nine);
+    __ b(ten);
+    __ b(eleven);
+    __ b(twelve);
+    __ b(thirteen);
+    __ b(fourteen);
+    __ b(fifteen);
+
+    __ bind(finish);
   }
 
   Label copy_f, copy_b;
